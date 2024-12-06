@@ -1,0 +1,5 @@
+# Ignore input files
+*/input.txt
+
+# Ignore markdown files
+*/day_*.md
