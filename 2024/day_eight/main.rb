@@ -1,83 +1,71 @@
-require 'set'
+# Parse input grid
+grid = ARGF.readlines.flat_map.with_index do |line, y|
+  line.chomp.chars.map.with_index { |cell, x| [x + 1i * y, cell] }
+end.to_h
 
-class AntennaGrid
-  def initialize(grid)
-    @grid = grid.map(&:chars)
-    @height = @grid.length
-    @width = @grid[0].length
-    @antennas = find_antennas
+# Group antenna coordinates by frequency (excluding empty cells)
+antenna_coords = grid
+                   .reject { |_, cell| cell == '.' }
+                   .group_by { |_, cell| cell }
+                   .transform_values { |pairs| pairs.map(&:first) }
+
+# Part 1: Find unique antinodes based on distance rule
+def find_antinodes_part1(antenna_coords, grid)
+  antinode_positions = []
+
+  antenna_coords.each_value do |coords|
+    coords.combination(2) do |first, second|
+      vector = second - first
+
+      # Calculate potential antinodes on either side
+      antinode1 = first - vector
+      antinode2 = second + vector
+
+      # Add valid antinodes within the grid
+      antinode_positions << antinode1 if grid.key?(antinode1)
+      antinode_positions << antinode2 if grid.key?(antinode2)
+    end
   end
 
-  def count_antinodes
-    antinodes = Set.new
+  antinode_positions.uniq.count
+end
 
-    # Iterate through all frequencies
-    @antennas.each do |freq, freq_antennas|
-      # Compare every pair of antennas with the same frequency
-      freq_antennas.combination(2).each do |antenna1, antenna2|
-        dx = antenna2[0] - antenna1[0]
-        dy = antenna2[1] - antenna1[1]
+def find_antinodes_part2(antenna_coords, grid)
+  antinode_positions = []
 
-        # Ensure the antennas are in a straight line
-        next unless straight_line?(dx, dy)
+  antenna_coords.each_value do |coords|
+    coords.combination(2) do |first, second|
+      vector = second - first
 
-        # Check for antinodes on both sides
-        [1, -1].each do |direction|
-          first_antinode = [
-            antenna1[0] + direction * dx * 2,
-            antenna1[1] + direction * dy * 2
-          ]
-          second_antinode = [
-            antenna2[0] + direction * dx * 2,
-            antenna2[1] + direction * dy * 2
-          ]
+      # Iterate through the grid and find aligned positions
+      grid.each_key do |coord|
+        # Check if the point is aligned with the antenna pair
+        vector_to_first = coord - first
+        vector_to_second = coord - second
 
-          # Add valid antinodes
-          add_antinode(antinodes, first_antinode)
-          add_antinode(antinodes, second_antinode)
+        # Calculate alignment by checking if vectors are scalar multiples
+        aligned_to_first = (vector_to_first.real * vector.imag == vector_to_first.imag * vector.real)
+        aligned_to_second = (vector_to_second.real * vector.imag == vector_to_second.imag * vector.real)
+
+        # Add position if it aligns with both antennas
+        if aligned_to_first || aligned_to_second
+          antinode_positions << coord
         end
       end
     end
-
-    antinodes.size
   end
 
-  private
+  # Include all antenna positions as antinodes
+  antinode_positions += antenna_coords.values.flatten
 
-  def straight_line?(dx, dy)
-    dx == 0 || dy == 0 || dx.abs == dy.abs
-  end
-
-  def add_antinode(antinodes, antinode)
-    x, y = antinode
-    return unless within_bounds?(x, y)
-    return if @grid[y][x] != '.'
-
-    antinodes << antinode
-  end
-
-  def find_antennas
-    antennas = Hash.new { |h, k| h[k] = [] }
-    
-    @grid.each_with_index do |row, y|
-      row.each_with_index do |cell, x|
-        antennas[cell] << [x, y] unless cell == '.'
-      end
-    end
-
-    antennas
-  end
-
-  def within_bounds?(x, y)
-    x >= 0 && x < @width && y >= 0 && y < @height
-  end
+  antinode_positions.uniq.count
 end
 
-# File path handling
-file_path = "day_eight/input.txt"
 
-# Read input from file
-input = File.readlines(file_path, chomp: true)
+# Solve Part 1
+part1_result = find_antinodes_part1(antenna_coords, grid)
+puts "Part 1: #{part1_result}"
 
-grid = AntennaGrid.new(input)
-puts "Unique Antinodes: #{grid.count_antinodes}"
+# Solve Part 2
+part2_result = find_antinodes_part2(antenna_coords, grid)
+puts "Part 2: #{part2_result}"
